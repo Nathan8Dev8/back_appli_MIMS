@@ -6,7 +6,15 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Le front (Vercel) et l'API (Render) sont sur des domaines différents :
+      // "same-origin" (valeur par défaut de helmet) empêche le navigateur de
+      // charger les avatars/documents/reçus servis par l'API depuis le front —
+      // d'où les images cassées malgré un fichier tout à fait valide.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.enableCors({
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(','),
     credentials: true,
