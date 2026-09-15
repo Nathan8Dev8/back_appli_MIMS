@@ -7,6 +7,7 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { PrismaModule } from './database/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
+import { StorageModule } from './common/storage/storage.module';
 import { AuthModule } from './auth/auth.module';
 import { MembersModule } from './members/members.module';
 import { RolesModule } from './roles/roles.module';
@@ -35,6 +36,7 @@ import { PushModule } from './push/push.module';
     }),
     PrismaModule,
     AuditModule,
+    StorageModule,
     AuthModule,
     MembersModule,
     RolesModule,

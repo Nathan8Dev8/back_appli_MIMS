@@ -181,7 +181,7 @@ export class ReceiptsService {
     });
 
     const key = `receipts/${payment.memberId}/${randomUUID()}.pdf`;
-    const { storageKey, sha256 } = await this.storage.put(key, pdf);
+    const { storageKey, sha256 } = await this.storage.put(key, pdf, 'application/pdf');
 
     return this.prisma.receipt.create({
       data: { paymentId, receiptNo, storageKey, sha256 },

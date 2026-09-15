@@ -154,11 +154,11 @@ export class MembersService {
 
     const ext = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
     const key = `avatars/${memberId}/${randomUUID()}.${ext}`;
-    await this.storage.put(key, file.buffer);
+    const { url } = await this.storage.put(key, file.buffer, file.mimetype);
 
     const member = await this.prisma.member.update({
       where: { id: memberId },
-      data: { avatarUrl: `/files/${key}` },
+      data: { avatarUrl: url },
     });
 
     await this.audit.log({

@@ -32,11 +32,11 @@ export class AnnouncementsService {
 
     if (file) {
       const key = `announcements/${randomUUID()}-${file.originalname}`;
-      const { storageKey, sha256 } = await this.storage.put(key, file.buffer);
+      const { url, sha256 } = await this.storage.put(key, file.buffer, file.mimetype);
       attachment = {
-        // Préfixé comme avatarUrl : servi tel quel par ServeStaticModule (/files),
-        // directement consommable par le front via `fileUrl()`.
-        attachmentKey: `/files/${storageKey}`,
+        // URL directement consommable par le front via `fileUrl()` — /files
+        // en local, l'URL publique S3/CDN en production.
+        attachmentKey: url,
         attachmentName: file.originalname,
         attachmentMime: file.mimetype,
         attachmentSha256: sha256,

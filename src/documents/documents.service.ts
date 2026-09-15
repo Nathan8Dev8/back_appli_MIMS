@@ -38,7 +38,7 @@ export class DocumentsService {
     const count = await this.prisma.document.count();
     const documentCode = `DOC-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
     const key = `documents/${documentCode}/${randomUUID()}-${file.originalname}`;
-    const { storageKey, sha256 } = await this.storage.put(key, file.buffer);
+    const { storageKey, sha256 } = await this.storage.put(key, file.buffer, file.mimetype);
 
     const document = await this.prisma.document.create({
       data: {
