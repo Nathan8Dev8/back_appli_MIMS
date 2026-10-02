@@ -16,6 +16,8 @@ import { DocumentsModule } from './documents/documents.module';
 import { EventsModule } from './events/events.module';
 import { PollsModule } from './polls/polls.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
+import { ComplaintsModule } from './complaints/complaints.module';
+import { FeedbackModule } from './feedback/feedback.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AuditHttpModule } from './audit/audit-http.module';
@@ -42,6 +44,8 @@ import { FinanceModule } from './finance/finance.module';
     EventsModule,
     PollsModule,
     QuizzesModule,
+    ComplaintsModule,
+    FeedbackModule,
     NotificationsModule,
     OnboardingModule,
     AuditHttpModule,

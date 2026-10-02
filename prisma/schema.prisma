@@ -65,6 +65,9 @@ model Member {
   publishedAnnouncements Announcement[]       @relation("AnnouncementPublishedBy")
   pushSubscriptions      PushSubscription[]
   quizAttempts           QuizAttempt[]
+  complaints             Complaint[]          @relation("ComplaintAuthor")
+  complaintMessages      ComplaintMessage[]   @relation("ComplaintMessageAuthor")
+  appFeedback            AppFeedback[]        @relation("FeedbackAuthor")
 
   @@index([phone])
   @@index([status])
@@ -623,4 +626,110 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorId])
   @@map("audit_logs")
+}
+
+// ————————————————————————————————————————————————————————————
+// Plaintes & suggestions (toujours nominatives)
+// Traitées par le Président et le Pasteur ; la catégorie BUREAU ne va qu'au Pasteur.
+// ————————————————————————————————————————————————————————————
+
+enum ComplaintKind {
+  PLAINTE
+  SUGGESTION
+}
+
+enum ComplaintCategory {
+  ACTIVITES
+  COTISATIONS
+  COMPORTEMENT
+  BUREAU
+  AUTRE
+}
+
+enum ComplaintStatus {
+  RECUE
+  EN_COURS
+  RESOLUE
+  CLASSEE
+}
+
+model Complaint {
+  id             String            @id @default(uuid())
+  reference      String            @unique
+  kind           ComplaintKind
+  category       ComplaintCategory
+  subject        String
+  description    String
+  status         ComplaintStatus   @default(RECUE)
+  authorId       String            @map("author_id")
+  attachmentKey  String?           @map("attachment_key")
+  attachmentName String?           @map("attachment_name")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  closedAt       DateTime?         @map("closed_at")
+  // Dernier rappel « sans réponse depuis 7 jours » envoyé aux responsables.
+  remindedAt     DateTime?         @map("reminded_at")
+
+  author   Member             @relation("ComplaintAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  messages ComplaintMessage[]
+
+  @@index([authorId])
+  @@index([status])
+  @@map("complaints")
+}
+
+// Fil d'échange ; newStatus trace un changement de statut (avec ou sans texte).
+model ComplaintMessage {
+  id          String           @id @default(uuid())
+  complaintId String           @map("complaint_id")
+  authorId    String           @map("author_id")
+  content     String?
+  newStatus   ComplaintStatus? @map("new_status")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author    Member    @relation("ComplaintMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_messages")
+}
+
+// ————————————————————————————————————————————————————————————
+// Retours sur l'application (bugs, idées d'amélioration) — distincts des plaintes,
+// reçus par le Président / Administrateur.
+// ————————————————————————————————————————————————————————————
+
+enum FeedbackKind {
+  BUG
+  AMELIORATION
+}
+
+enum FeedbackStatus {
+  NOUVEAU
+  PRIS_EN_COMPTE
+  TERMINE
+  NON_RETENU
+}
+
+model AppFeedback {
+  id             String         @id @default(uuid())
+  kind           FeedbackKind
+  title          String
+  description    String
+  // Relevés automatiquement à l'envoi pour aider à reproduire le problème.
+  page           String?
+  device         String?
+  screenshotKey  String?        @map("screenshot_key")
+  screenshotName String?        @map("screenshot_name")
+  status         FeedbackStatus @default(NOUVEAU)
+  // Réponse de l'administrateur, visible par la personne.
+  adminNote      String?        @map("admin_note")
+  authorId       String         @map("author_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  author Member @relation("FeedbackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("app_feedback")
 }
