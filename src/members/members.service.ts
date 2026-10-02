@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -66,7 +66,8 @@ export class MembersService {
     while (await this.prisma.userAccount.findUnique({ where: { username } })) {
       username = `${baseUsername}${suffix++}`;
     }
-    const temporaryPassword = randomUUID().split('-')[0];
+    // 12 caractères aléatoires (≈ 72 bits), à changer obligatoirement à la première connexion.
+    const temporaryPassword = randomBytes(9).toString('base64url');
     const passwordHash = await argon2.hash(temporaryPassword);
 
     const memberRole = await this.prisma.role.upsert({

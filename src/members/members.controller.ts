@@ -47,7 +47,7 @@ export class MembersController {
 
   // « Ma photo » — chaque membre peut changer sa photo de profil.
   @Post('me/avatar')
-  @UseInterceptors(FileInterceptor('avatar', { storage: memoryStorage() }))
+  @UseInterceptors(FileInterceptor('avatar', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
   updateOwnAvatar(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) {
     return this.members.updateAvatar(user.memberId, file);
   }

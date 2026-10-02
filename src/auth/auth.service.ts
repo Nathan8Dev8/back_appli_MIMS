@@ -4,6 +4,9 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 
+let dummy: Promise<string> | null = null;
+const dummyHash = () => (dummy ??= argon2.hash('jeunes-mims-dummy-password'));
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -17,9 +20,9 @@ export class AuthService {
       where: { username },
       include: { member: { include: { roles: { include: { role: true } } } } },
     });
+    // Même coût de vérification que l'identifiant existe ou non : on ne peut pas deviner les identifiants au chronomètre.
+    const valid = await argon2.verify(account?.passwordHash ?? (await dummyHash()), password);
     if (!account) throw new UnauthorizedException('Identifiants incorrects.');
-
-    const valid = await argon2.verify(account.passwordHash, password);
     if (!valid) throw new UnauthorizedException('Identifiants incorrects.');
 
     if (account.member.status !== 'ACTIF') {

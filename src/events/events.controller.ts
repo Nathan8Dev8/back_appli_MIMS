@@ -65,7 +65,7 @@ export class EventsController {
   // Même droit que pour publier un document : le PV part directement dans Documents.
   @Post(':id/report')
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))
   attachReport(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthenticatedUser) {
     return this.events.attachReport(id, file, user.memberId);
   }

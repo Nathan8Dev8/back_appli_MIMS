@@ -3,6 +3,13 @@ import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
+// Variables d'environnement locales (en production, l'hébergeur les fournit directement).
+try {
+  process.loadEnvFile('.env');
+} catch {
+  // pas de fichier .env : on utilise l'environnement tel quel
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
 

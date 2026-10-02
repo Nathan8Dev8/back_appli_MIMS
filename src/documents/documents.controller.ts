@@ -39,7 +39,7 @@ export class DocumentsController {
 
   @Post()
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))
   upload(
     @UploadedFile() file: Express.Multer.File,
     @Body('type') type: DocumentType,
