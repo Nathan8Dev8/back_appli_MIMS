@@ -1,5 +1,5 @@
 import { EventKind } from '@prisma/client';
-import { IsArray, IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsLatitude, IsLongitude, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateEventDto {
   @IsOptional() @IsEnum(EventKind)
@@ -13,6 +13,13 @@ export class CreateEventDto {
 
   @IsOptional() @IsString()
   location?: string;
+
+  /** Coordonnées GPS du lieu ; null pour les effacer. */
+  @IsOptional() @IsLatitude()
+  latitude?: number | null;
+
+  @IsOptional() @IsLongitude()
+  longitude?: number | null;
 
   @IsDateString()
   startsAt!: string;
@@ -36,6 +43,13 @@ export class UpdateEventDto {
 
   @IsOptional() @IsString()
   location?: string;
+
+  /** Coordonnées GPS du lieu ; null pour les effacer. */
+  @IsOptional() @IsLatitude()
+  latitude?: number | null;
+
+  @IsOptional() @IsLongitude()
+  longitude?: number | null;
 
   @IsOptional() @IsDateString()
   startsAt?: string;

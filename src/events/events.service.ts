@@ -8,6 +8,13 @@ import { CreateEventDto, UpdateEventDto } from './dto/create-event.dto';
 
 const REPORT_DOCUMENT = { select: { id: true, title: true, documentCode: true, status: true } };
 
+/** Latitude et longitude vont ensemble : les deux, ou aucune (null efface la position). */
+function coordinates(dto: { latitude?: number | null; longitude?: number | null }) {
+  if (dto.latitude === undefined && dto.longitude === undefined) return {};
+  if (dto.latitude == null || dto.longitude == null) return { latitude: null, longitude: null };
+  return { latitude: dto.latitude, longitude: dto.longitude };
+}
+
 /** Un champ texte vidé dans le formulaire est enregistré comme absent. */
 const clean = (value?: string) => (value === undefined ? undefined : value.trim() || null);
 
@@ -53,6 +60,7 @@ export class EventsService {
         title: dto.title.trim(),
         description: clean(dto.description),
         location: clean(dto.location),
+        ...coordinates(dto),
         agenda: clean(dto.agenda),
         startsAt: new Date(dto.startsAt),
         endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
@@ -80,6 +88,7 @@ export class EventsService {
         title: dto.title?.trim() || undefined,
         description: clean(dto.description),
         location: clean(dto.location),
+        ...coordinates(dto),
         agenda: clean(dto.agenda),
         decisions: clean(dto.decisions),
         startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,

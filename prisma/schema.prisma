@@ -378,6 +378,9 @@ model Event {
   title            String
   description      String?
   location         String?
+  // Position exacte du lieu (choisie sur la carte), en degrés décimaux.
+  latitude         Float?
+  longitude        Float?
   startsAt         DateTime    @map("starts_at")
   endsAt           DateTime?   @map("ends_at")
   status           EventStatus @default(PLANIFIE)
