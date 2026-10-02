@@ -17,11 +17,6 @@ export class PollsController {
     return this.polls.list();
   }
 
-  @Get(':id/results')
-  results(@Param('id') id: string) {
-    return this.polls.results(id);
-  }
-
   @Post()
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN, RoleCode.PASTEUR_ENCADREUR)
   create(@Body() dto: CreatePollDto, @CurrentUser() user: AuthenticatedUser) {

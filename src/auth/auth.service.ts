@@ -23,7 +23,7 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Identifiants incorrects.');
 
     if (account.member.status !== 'ACTIF') {
-      throw new UnauthorizedException("Ce compte n'est plus actif. Contactez un responsable.");
+      throw new UnauthorizedException("Ce compte n'est plus actif. Contacte un responsable du bureau.");
     }
 
     return account;
@@ -92,8 +92,6 @@ export class AuthService {
       address: member.address,
       birthDate: member.birthDate,
       avatarUrl: member.avatarUrl,
-      whatsappActive: member.whatsappActive,
-      preferredChannel: member.preferredChannel,
       joinedAt: member.joinedAt,
       status: member.status,
       roles: member.roles.map((r) => r.role.code),

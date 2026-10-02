@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -13,6 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
+import { extname } from 'path';
 import { DocumentType, RoleCode } from '@prisma/client';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -26,8 +29,12 @@ export class DocumentsController {
   constructor(private readonly documents: DocumentsService) {}
 
   @Get()
-  list(@Query('type') type: DocumentType | undefined, @CurrentUser() user: AuthenticatedUser) {
-    return this.documents.list(type, canSeeDrafts(user));
+  list(
+    @Query('type') type: DocumentType | undefined,
+    @Query('archived') archived: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documents.list(type, canSeeDrafts(user), archived === '1');
   }
 
   @Post()
@@ -50,11 +57,36 @@ export class DocumentsController {
     return this.documents.publish(id, user.memberId);
   }
 
+  @Patch(':id')
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
+  update(
+    @Param('id') id: string,
+    @Body() body: { type?: DocumentType; title?: string; description?: string; documentDate?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (body.type && !Object.values(DocumentType).includes(body.type)) throw new BadRequestException('Type invalide.');
+    return this.documents.update(id, body, user.memberId);
+  }
+
+  @Post(':id/archive')
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
+  archive(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.documents.setArchived(id, true, user.memberId);
+  }
+
+  @Post(':id/restore')
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
+  restore(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.documents.setArchived(id, false, user.memberId);
+  }
+
   @Get(':id/download')
   async download(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
     const { buffer, document } = await this.documents.getForDownload(id, canSeeDrafts(user));
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${document.documentCode}"`);
+    // On garde l'extension d'origine, sinon le fichier ne s'ouvre pas sur téléphone.
+    res.setHeader('Content-Disposition', `attachment; filename="${document.documentCode}${extname(document.storageKey)}"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.send(buffer);
   }
 }

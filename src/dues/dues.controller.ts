@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
 import { DuesService } from './dues.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -14,18 +14,6 @@ export class DuesController {
   @Get('me')
   mine(@CurrentUser() user: AuthenticatedUser) {
     return this.dues.listForMember(user.memberId);
-  }
-
-  @Get()
-  @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN, RoleCode.SECRETAIRE)
-  all(@Query('status') status?: string) {
-    return this.dues.listAll(status);
-  }
-
-  @Get('debt-summary')
-  @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN)
-  debtSummary() {
-    return this.dues.debtSummary();
   }
 
   @Get('member/:memberId')

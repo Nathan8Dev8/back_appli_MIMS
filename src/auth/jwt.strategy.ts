@@ -28,7 +28,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     const member = await this.prisma.member.findUnique({ where: { id: payload.sub } });
     if (!member || member.status !== 'ACTIF') {
-      throw new UnauthorizedException('Session expirée, merci de te reconnecter.');
+      throw new UnauthorizedException('Ta session a expiré, reconnecte-toi.');
     }
     return { memberId: payload.sub, username: payload.username, roles: payload.roles };
   }

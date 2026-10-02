@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
@@ -19,7 +19,8 @@ async function bootstrap() {
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(','),
     credentials: true,
   });
-  app.setGlobalPrefix('api');
+  // /files reste hors du préfixe : les adresses enregistrées en base (/files/...) doivent continuer à marcher.
+  app.setGlobalPrefix('api', { exclude: [{ path: 'files/*', method: RequestMethod.GET }] });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

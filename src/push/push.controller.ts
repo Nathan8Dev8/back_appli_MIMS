@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Headers, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Headers, Post, UseGuards } from '@nestjs/common';
 import { PushService } from './push.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SubscribePushDto, UnsubscribePushDto } from './dto/subscribe-push.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
@@ -7,7 +8,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 @UseGuards(JwtAuthGuard)
 @Controller('push')
 export class PushController {
-  constructor(private readonly push: PushService) {}
+  constructor(private readonly push: PushService, private readonly notifications: NotificationsService) {}
 
   @Post('subscribe')
   subscribe(
@@ -23,8 +24,16 @@ export class PushController {
     return this.push.unsubscribe(user.memberId, dto.endpoint);
   }
 
-  @Get('devices')
-  myDevices(@CurrentUser() user: AuthenticatedUser) {
-    return this.push.listMyDevices(user.memberId);
+  /** Notification d'essai : permet de vérifier, appli fermée, qu'elle s'affiche bien sur l'écran. */
+  @Post('test')
+  test(@CurrentUser() user: AuthenticatedUser) {
+    return this.notifications.notifyMember(
+      user.memberId,
+      'AUTRE',
+      'Ça marche 🎉',
+      'Les notifications des Jeunes MIMS arrivent bien sur cet appareil.',
+      '/mon-profil',
+    );
   }
+
 }

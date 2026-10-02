@@ -40,7 +40,8 @@ export class PollsService {
           m.id,
           'SONDAGE',
           `Nouveau sondage : ${poll.title}`,
-          "Ton avis compte ! Donne ta voix dès maintenant dans l'espace Sondages.",
+          "Le bureau aimerait ton avis. Tu peux voter dans l'onglet Sondages.",
+          '/sondages',
         ),
       ),
     );
@@ -56,27 +57,9 @@ export class PollsService {
     const existing = await this.prisma.vote.findUnique({
       where: { pollId_memberId: { pollId, memberId } },
     });
-    if (existing) throw new ConflictException('Vous avez déjà voté pour ce sondage.');
+    if (existing) throw new ConflictException('Tu as déjà voté pour ce sondage.');
 
     return this.prisma.vote.create({ data: { pollId, optionId, memberId } });
-  }
-
-  async results(pollId: string) {
-    const poll = await this.prisma.poll.findUniqueOrThrow({
-      where: { id: pollId },
-      include: { options: { include: { _count: { select: { votes: true } } } } },
-    });
-    const total = poll.options.reduce((sum, o) => sum + o._count.votes, 0);
-    return {
-      poll: { id: poll.id, title: poll.title, status: poll.status, anonymous: poll.anonymous },
-      totalVotes: total,
-      options: poll.options.map((o) => ({
-        id: o.id,
-        label: o.label,
-        votes: o._count.votes,
-        percentage: total ? Math.round((o._count.votes / total) * 100) : 0,
-      })),
-    };
   }
 
   async close(pollId: string, actorId: string) {

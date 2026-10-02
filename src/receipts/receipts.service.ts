@@ -29,7 +29,8 @@ function buildPdf(params: {
   amount: number;
   method: string;
   paidAt: Date;
-  months: string[];
+  heading: string;
+  motif: string;
 }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A5', margin: 0 });
@@ -66,7 +67,7 @@ function buildPdf(params: {
       .font('Helvetica')
       .fontSize(9.5)
       .fillColor(INK_MUTED)
-      .text('Reçu officiel de cotisation', marginX, cursorY, { width: contentWidth, align: 'center' });
+      .text(params.heading, marginX, cursorY, { width: contentWidth, align: 'center' });
     cursorY += 24;
 
     doc
@@ -100,10 +101,9 @@ function buildPdf(params: {
     cursorY += 22;
 
     // Motif du versement
-    const motif = params.months.length ? `Cotisation mensuelle — ${params.months.join(', ')}` : 'Cotisation mensuelle';
     doc.font('Helvetica-Bold').fontSize(9).fillColor(INK_MUTED).text('MOTIF DU VERSEMENT', marginX, cursorY, { characterSpacing: 0.5 });
     cursorY += 13;
-    doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(motif, marginX, cursorY, { width: contentWidth });
+    doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(params.motif, marginX, cursorY, { width: contentWidth });
     cursorY += 18;
     doc
       .font('Helvetica')
@@ -129,7 +129,7 @@ function buildPdf(params: {
       .font('Helvetica-Bold')
       .fontSize(20)
       .fillColor(BRAND_BLUE)
-      .text(`${params.amount.toLocaleString('fr-FR')} FCFA payé`, amountTextX, cursorY + boxHeight / 2 - 12, {
+      .text(`${params.amount.toLocaleString('fr-FR')} FCFA reçus`, amountTextX, cursorY + boxHeight / 2 - 12, {
         width: pageWidth - marginX - amountTextX,
       });
 
@@ -141,7 +141,7 @@ function buildPdf(params: {
       .fontSize(9)
       .fillColor(INK_MUTED)
       .text(
-        "Ce reçu est généré automatiquement et certifie la réception du versement mentionné ci-dessus. Merci pour ta fidélité et ton engagement au sein de la communauté !",
+        "Ce reçu confirme que nous avons bien reçu ton versement. Merci pour ton engagement !",
         marginX,
         cursorY,
         { width: contentWidth, align: 'center' },
@@ -160,7 +160,7 @@ export class ReceiptsService {
   async generateForPayment(paymentId: string) {
     const payment = await this.prisma.payment.findUniqueOrThrow({
       where: { id: paymentId },
-      include: { member: true, allocations: { include: { due: true } } },
+      include: { member: true, collecte: true, allocations: { include: { due: true } } },
     });
 
     const count = await this.prisma.receipt.count();
@@ -169,6 +169,15 @@ export class ReceiptsService {
     const months = payment.allocations.map((a) =>
       a.due.dueMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
     );
+    let heading = 'Reçu de cotisation';
+    let motif = months.length ? `Cotisation mensuelle — ${months.join(', ')}` : 'Cotisation mensuelle';
+    if (payment.nature === 'INSCRIPTION') {
+      heading = "Reçu d'inscription";
+      motif = "Frais d'inscription";
+    } else if (payment.nature === 'COLLECTE') {
+      heading = 'Reçu de contribution';
+      motif = `Contribution à la collecte — ${payment.collecte?.title ?? ''}`.trim();
+    }
 
     const pdf = await buildPdf({
       receiptNo,
@@ -177,7 +186,8 @@ export class ReceiptsService {
       amount: payment.amount,
       method: payment.method,
       paidAt: payment.paidAt,
-      months,
+      heading,
+      motif,
     });
 
     const key = `receipts/${payment.memberId}/${randomUUID()}.pdf`;
@@ -206,11 +216,4 @@ export class ReceiptsService {
     return { buffer, receipt };
   }
 
-  async listForMember(memberId: string) {
-    return this.prisma.receipt.findMany({
-      where: { payment: { memberId } },
-      include: { payment: true },
-      orderBy: { generatedAt: 'desc' },
-    });
-  }
 }

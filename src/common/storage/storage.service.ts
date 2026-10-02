@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
@@ -17,20 +17,19 @@ export interface StoredFile {
  * automatiquement selon la configuration :
  *
  * - Disque local (par défaut, tant que S3_BUCKET n'est pas défini) : écrit
- *   dans STORAGE_ROOT, servi par ServeStaticModule sur /files. Pratique en
+ *   dans STORAGE_ROOT. Pratique en
  *   développement, mais ÉPHÉMÈRE sur la plupart des hébergeurs (Render,
  *   Railway…) : tout disparaît au redéploiement ou redémarrage.
  * - S3 (dès que S3_BUCKET est défini) : compatible AWS S3, Cloudflare R2,
  *   Backblaze B2, Supabase Storage, MinIO… via S3_ENDPOINT. C'est
- *   l'implémentation à utiliser en production — voir README « Mise en
- *   production » pour la configuration complète des variables S3_*.
+ *   l'implémentation à utiliser en production. Le bucket peut rester privé :
+ *   c'est l'API qui lit les fichiers (voir FilesController).
  */
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly localRoot = process.env.STORAGE_ROOT ?? join(process.cwd(), 'storage');
   private readonly bucket = process.env.S3_BUCKET;
-  private readonly publicUrlBase = (process.env.S3_PUBLIC_URL_BASE ?? '').replace(/\/+$/, '') || null;
   private readonly s3: S3Client | null;
 
   constructor() {
@@ -39,6 +38,10 @@ export class StorageService {
         region: process.env.S3_REGION ?? 'auto',
         endpoint: process.env.S3_ENDPOINT || undefined,
         forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+        // Les versions récentes du SDK ajoutent des sommes de contrôle que plusieurs services
+        // compatibles S3 (Backblaze B2, Cloudflare R2…) ne gèrent pas toujours : on ne les envoie que si S3 l'exige.
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
         credentials:
           process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
             ? {
@@ -60,9 +63,18 @@ export class StorageService {
     const sha256 = createHash('sha256').update(buffer).digest('hex');
 
     if (this.s3 && this.bucket) {
-      await this.s3.send(
-        new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: contentType }),
-      );
+      try {
+        await this.s3.send(
+          new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: contentType }),
+        );
+      } catch (err: any) {
+        // Le détail technique va dans les logs ; l'utilisateur reçoit un message compréhensible au lieu d'une erreur 500.
+        this.logger.error(`Envoi vers le stockage refusé (${err?.name ?? 'erreur'}) : ${err?.message ?? err}`);
+        throw new ServiceUnavailableException(
+          "Le fichier n'a pas pu être enregistré : le stockage des fichiers est indisponible ou mal configuré. Préviens l'administrateur.",
+          { cause: err },
+        );
+      }
       return { storageKey: key, sha256, url: this.publicUrl(key) };
     }
 
@@ -95,10 +107,11 @@ export class StorageService {
     return existsSync(join(this.localRoot, key));
   }
 
-  /** URL publique d'un fichier stocké en S3 (bucket en lecture publique, ou domaine CDN dédié via S3_PUBLIC_URL_BASE). */
+  /**
+   * Adresse d'un fichier, relative à l'API : /files est servi par FilesController,
+   * que le stockage soit local ou S3. Le bucket peut donc rester privé.
+   */
   publicUrl(key: string): string {
-    if (this.publicUrlBase) return `${this.publicUrlBase}/${key}`;
-    if (process.env.S3_ENDPOINT) return `${process.env.S3_ENDPOINT.replace(/\/+$/, '')}/${this.bucket}/${key}`;
-    return `https://${this.bucket}.s3.${process.env.S3_REGION ?? 'us-east-1'}.amazonaws.com/${key}`;
+    return `/files/${key}`;
   }
 }

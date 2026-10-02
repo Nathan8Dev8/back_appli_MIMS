@@ -52,12 +52,6 @@ export class MembersController {
     return this.members.updateAvatar(user.memberId, file);
   }
 
-  @Get(':id')
-  @Roles(RoleCode.SECRETAIRE, RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN, RoleCode.PASTEUR_ENCADREUR)
-  findOne(@Param('id') id: string) {
-    return this.members.findOne(id);
-  }
-
   @Patch(':id/status')
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   setStatus(@Param('id') id: string, @Body('status') status: string, @CurrentUser() user: AuthenticatedUser) {

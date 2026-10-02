@@ -25,10 +25,6 @@ export class RolesService {
     }
   }
 
-  list() {
-    return this.prisma.role.findMany({ orderBy: { code: 'asc' } });
-  }
-
   async assign(memberId: string, roleCode: RoleCode, actorId?: string) {
     const role = await this.prisma.role.findUniqueOrThrow({ where: { code: roleCode } });
     const assignment = await this.prisma.memberRole.upsert({

@@ -1,7 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as webpush from 'web-push';
 import { PrismaService } from '../../database/prisma.service';
-import { ChannelAdapter, ChannelSendResult } from './channel-adapter.interface';
+
+export interface PushPayload {
+  id: string;
+  title: string;
+  body: string;
+  url: string;
+  unread: number;
+}
+
+export interface PushResult {
+  success: boolean;
+  providerMessageId?: string;
+  error?: string;
+}
 
 /**
  * Notifications Web Push réelles, envoyées au système d'exploitation de
@@ -14,7 +27,7 @@ import { ChannelAdapter, ChannelSendResult } from './channel-adapter.interface';
  * base pour l'espace personnel).
  */
 @Injectable()
-export class WebPushChannelAdapter implements ChannelAdapter {
+export class WebPushChannelAdapter {
   private readonly logger = new Logger(WebPushChannelAdapter.name);
   private readonly configured: boolean;
 
@@ -33,27 +46,17 @@ export class WebPushChannelAdapter implements ChannelAdapter {
     }
   }
 
-  async send(
-    to: { phone?: string | null; email?: string | null; memberId: string },
-    title: string,
-    content: string,
-  ): Promise<ChannelSendResult> {
+  async send(memberId: string, payload: PushPayload): Promise<PushResult> {
     if (!this.configured) {
       return { success: false, error: 'push-not-configured' };
     }
 
-    const subscriptions = await this.prisma.pushSubscription.findMany({ where: { memberId: to.memberId } });
+    const subscriptions = await this.prisma.pushSubscription.findMany({ where: { memberId } });
     if (subscriptions.length === 0) {
       return { success: false, error: 'no-subscription' };
     }
 
-    const payload = JSON.stringify({
-      title,
-      body: content,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      url: '/notifications',
-    });
+    const data = JSON.stringify(payload);
 
     let delivered = 0;
     for (const subscription of subscriptions) {
@@ -63,7 +66,10 @@ export class WebPushChannelAdapter implements ChannelAdapter {
             endpoint: subscription.endpoint,
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
-          payload,
+          data,
+          // urgency « high » : livrée tout de suite même si le téléphone est en veille ;
+          // TTL 3 jours : un téléphone éteint la reçoit à son rallumage.
+          { TTL: 3 * 24 * 3600, urgency: 'high' },
         );
         delivered += 1;
       } catch (err: any) {
@@ -72,7 +78,7 @@ export class WebPushChannelAdapter implements ChannelAdapter {
         if (err?.statusCode === 404 || err?.statusCode === 410) {
           await this.prisma.pushSubscription.delete({ where: { id: subscription.id } }).catch(() => undefined);
         } else {
-          this.logger.warn(`Échec d'envoi push (${err?.statusCode ?? 'erreur inconnue'}) pour ${to.memberId}`);
+          this.logger.warn(`Échec d'envoi push (${err?.statusCode ?? 'erreur inconnue'}) pour ${memberId}`);
         }
       }
     }

@@ -1,5 +1,5 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { PreferredChannel, RoleCode } from '@prisma/client';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { RoleCode } from '@prisma/client';
 
 export class CreateMemberDto {
   @IsString() @MinLength(2)
@@ -20,11 +20,6 @@ export class CreateMemberDto {
   @IsOptional() @IsString()
   birthDate?: string;
 
-  @IsOptional() @IsBoolean()
-  whatsappActive?: boolean;
-
-  @IsOptional() @IsEnum(PreferredChannel)
-  preferredChannel?: PreferredChannel;
 
   /**
    * Rôle additionnel à attribuer dès la création (en plus de MEMBRE).

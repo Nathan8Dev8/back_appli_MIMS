@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { join } from 'path';
 import { AppController } from './app.controller';
 import { PrismaModule } from './database/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
@@ -25,15 +23,12 @@ import { ReportsModule } from './reports/reports.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { PushModule } from './push/push.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }] }),
-    ServeStaticModule.forRoot({
-      rootPath: process.env.STORAGE_ROOT ?? join(process.cwd(), 'storage'),
-      serveRoot: '/files',
-    }),
     PrismaModule,
     AuditModule,
     StorageModule,
@@ -54,6 +49,7 @@ import { PushModule } from './push/push.module';
     JobsModule,
     AnnouncementsModule,
     PushModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

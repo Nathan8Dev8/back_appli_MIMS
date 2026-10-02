@@ -43,7 +43,7 @@ export class QuizzesService {
     const existing = await this.prisma.quizAttempt.findUnique({
       where: { quizId_memberId: { quizId, memberId } },
     });
-    if (existing) throw new ConflictException('Vous avez déjà répondu à ce quiz.');
+    if (existing) throw new ConflictException('Tu as déjà répondu à ce quiz.');
 
     const questions: QuizQuestionDto[] = (quiz.content as any).questions;
     let score = 0;

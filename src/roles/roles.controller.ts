@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,11 +10,6 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 @Controller('roles')
 export class RolesController {
   constructor(private readonly roles: RolesService) {}
-
-  @Get()
-  list() {
-    return this.roles.list();
-  }
 
   @Post(':memberId/assign')
   @Roles(RoleCode.PRESIDENT_ADMIN)

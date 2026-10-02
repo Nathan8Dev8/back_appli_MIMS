@@ -5,6 +5,15 @@ import { AuditService } from '../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReceiptsService } from '../receipts/receipts.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { MONTHLY_DUE_AMOUNT, buildCotisationPlan, secondSundayUtc } from './cotisation-allocation';
+import { computeCashTotals } from '../finance/cash';
+import { resolveOperationDate } from '../finance/operation-date';
+
+const NATURE_NOTIFICATION: Record<string, string> = {
+  COTISATION: 'ta cotisation',
+  INSCRIPTION: "tes frais d'inscription",
+  COLLECTE: 'ta contribution à la collecte',
+};
 
 @Injectable()
 export class PaymentsService {
@@ -16,6 +25,31 @@ export class PaymentsService {
   ) {}
 
   async create(dto: CreatePaymentDto, actorId: string) {
+    const nature = dto.nature ?? 'COTISATION';
+    const paidAt = resolveOperationDate(dto.paidAt, new Date());
+
+    const member = await this.prisma.member.findUnique({ where: { id: dto.memberId } });
+    if (!member) throw new NotFoundException('Membre introuvable.');
+
+    let collecteId: string | undefined;
+    if (nature === 'COLLECTE') {
+      if (!dto.collecteId) throw new BadRequestException('Choisis la collecte concernée.');
+      const collecte = await this.prisma.collecte.findUnique({ where: { id: dto.collecteId } });
+      if (!collecte) throw new NotFoundException('Collecte introuvable.');
+      if (collecte.status !== 'OUVERTE') throw new BadRequestException('Cette collecte est clôturée.');
+      collecteId = collecte.id;
+    }
+
+    if (nature === 'INSCRIPTION') {
+      const existing = await this.prisma.payment.findFirst({
+        where: { memberId: dto.memberId, nature: 'INSCRIPTION', amount: { gt: 0 }, status: { in: ['EN_ATTENTE', 'VALIDE'] } },
+      });
+      if (existing) throw new BadRequestException("Les frais d'inscription de ce membre sont déjà enregistrés.");
+    }
+
+    // Refuse d'emblée un montant impossible à répartir, avant de créer quoi que ce soit.
+    if (nature === 'COTISATION') await buildCotisationPlan(this.prisma, dto.memberId, dto.amount, paidAt);
+
     const paymentRef = `PMT-${Date.now()}-${randomUUID().slice(0, 6).toUpperCase()}`;
     const payment = await this.prisma.payment.create({
       data: {
@@ -24,6 +58,9 @@ export class PaymentsService {
         amount: dto.amount,
         method: dto.method,
         note: dto.note,
+        nature,
+        collecteId,
+        paidAt,
         enteredById: actorId,
         status: 'EN_ATTENTE',
       },
@@ -35,13 +72,13 @@ export class PaymentsService {
       entityId: payment.id,
       after: payment,
     });
-    return payment;
+    return dto.autoConfirm ? this.confirm(payment.id, actorId) : payment;
   }
 
   /**
-   * Valide un versement : l'affecte aux échéances les plus anciennes en
-   * premier (FIFO), recalcule les soldes, génère le reçu PDF et notifie
-   * le membre — cf. cahier des charges §7 « Stratégie de dette ».
+   * Valide un versement, génère le reçu PDF et notifie le membre. Pour une
+   * cotisation, le montant est réparti (mois en cours, puis dettes, puis
+   * mois à venir) — voir cotisation-allocation.ts.
    */
   async confirm(paymentId: string, actorId: string) {
     const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
@@ -51,32 +88,38 @@ export class PaymentsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      let remaining = payment.amount;
-      const openDues = await tx.monthlyDue.findMany({
-        where: { memberId: payment.memberId, status: { in: ['A_PAYER', 'PARTIEL'] } },
-        orderBy: { dueMonth: 'asc' },
-      });
-
-      for (const due of openDues) {
-        if (remaining <= 0) break;
-        const toAllocate = Math.min(remaining, due.balance);
-        if (toAllocate <= 0) continue;
-
-        await tx.paymentAllocation.create({
-          data: { paymentId: payment.id, dueId: due.id, amountAllocated: toAllocate },
-        });
-
-        const newPaid = due.amountPaid + toAllocate;
-        const newBalance = due.balance - toAllocate;
-        await tx.monthlyDue.update({
-          where: { id: due.id },
-          data: {
-            amountPaid: newPaid,
-            balance: newBalance,
-            status: newBalance <= 0 ? 'PAYE' : 'PARTIEL',
-          },
-        });
-        remaining -= toAllocate;
+      if (payment.nature === 'COTISATION') {
+        const steps = await buildCotisationPlan(tx, payment.memberId, payment.amount, payment.paidAt);
+        for (const step of steps) {
+          let dueId = step.dueId;
+          if (step.isNew) {
+            const created = await tx.monthlyDue.create({
+              data: {
+                memberId: payment.memberId,
+                dueMonth: step.dueMonth,
+                amountDue: MONTHLY_DUE_AMOUNT,
+                amountPaid: step.amount,
+                balance: step.balanceAfter,
+                status: step.balanceAfter <= 0 ? 'PAYE' : 'PARTIEL',
+                dueDate: secondSundayUtc(step.dueMonth),
+              },
+            });
+            dueId = created.id;
+          } else {
+            const due = await tx.monthlyDue.findUniqueOrThrow({ where: { id: dueId! } });
+            await tx.monthlyDue.update({
+              where: { id: due.id },
+              data: {
+                amountPaid: due.amountPaid + step.amount,
+                balance: step.balanceAfter,
+                status: step.balanceAfter <= 0 ? 'PAYE' : 'PARTIEL',
+              },
+            });
+          }
+          await tx.paymentAllocation.create({
+            data: { paymentId: payment.id, dueId: dueId!, amountAllocated: step.amount },
+          });
+        }
       }
 
       await tx.payment.update({ where: { id: payment.id }, data: { status: 'VALIDE' } });
@@ -95,8 +138,9 @@ export class PaymentsService {
     await this.notifications.notifyMember(
       payment.memberId,
       'RECU',
-      'Votre reçu est disponible',
-      `Merci pour votre versement de ${payment.amount.toLocaleString('fr-FR')} FCFA. Votre reçu ${receipt.receiptNo} est prêt dans votre espace personnel.`,
+      'Ton reçu est prêt 🧾',
+      `Merci pour ${NATURE_NOTIFICATION[payment.nature] ?? 'ton versement'} de ${payment.amount.toLocaleString('fr-FR')} FCFA. Ton reçu ${receipt.receiptNo} est dans ton espace personnel.`,
+      '/cotisations',
     );
 
     return this.prisma.payment.findUnique({
@@ -115,8 +159,14 @@ export class PaymentsService {
       include: { allocations: true },
     });
     if (!original) throw new NotFoundException('Paiement introuvable.');
-    if (original.status !== 'VALIDE') {
-      throw new BadRequestException('Seul un paiement validé peut être contre-passé.');
+    if (original.status !== 'VALIDE' || original.amount <= 0) {
+      throw new BadRequestException('Seul un paiement validé peut être annulé.');
+    }
+    const { balance } = await computeCashTotals(this.prisma);
+    if (balance - original.amount < 0) {
+      throw new BadRequestException(
+        "Annulation impossible : le solde de la caisse deviendrait négatif. Annule d'abord la sortie concernée.",
+      );
     }
 
     const reversal = await this.prisma.$transaction(async (tx) => {
@@ -143,6 +193,8 @@ export class PaymentsService {
           status: 'VALIDE',
           enteredById: actorId,
           reversalOfId: original.id,
+          nature: original.nature,
+          collecteId: original.collecteId,
           note: reason,
         },
       });
@@ -172,7 +224,7 @@ export class PaymentsService {
 
   async listAll() {
     return this.prisma.payment.findMany({
-      include: { member: true, receipt: true },
+      include: { member: true, receipt: true, collecte: true },
       orderBy: { paidAt: 'desc' },
       take: 200,
     });

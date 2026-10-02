@@ -1,5 +1,5 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { PaymentMethod, PaymentNature } from '@prisma/client';
 
 export class CreatePaymentDto {
   @IsString()
@@ -7,6 +7,7 @@ export class CreatePaymentDto {
 
   @IsInt()
   @Min(1)
+  @Max(100_000_000)
   amount!: number;
 
   @IsEnum(PaymentMethod)
@@ -14,5 +15,26 @@ export class CreatePaymentDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   note?: string;
+
+  /** Nature de l'entrée ; COTISATION par défaut (compatibilité avec l'existant). */
+  @IsOptional()
+  @IsEnum(PaymentNature)
+  nature?: PaymentNature;
+
+  /** Obligatoire pour une contribution à une collecte. */
+  @IsOptional()
+  @IsString()
+  collecteId?: string;
+
+  /** Date réelle du versement (par défaut : maintenant). Jamais dans le futur. */
+  @IsOptional()
+  @IsISO8601()
+  paidAt?: string;
+
+  /** true = valider tout de suite (reçu généré) au lieu de laisser en attente. */
+  @IsOptional()
+  @IsBoolean()
+  autoConfirm?: boolean;
 }

@@ -1,5 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { PreferredChannel } from '@prisma/client';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 /**
  * Auto-service : chaque membre peut mettre à jour ses propres informations
@@ -21,12 +20,8 @@ export class UpdateProfileDto {
   @IsOptional() @IsString()
   address?: string;
 
-  @IsOptional() @IsString()
+  /** AAAA-MM-JJ. Les vœux d'anniversaire partent ce jour-là. */
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date de naissance invalide.' })
   birthDate?: string;
 
-  @IsOptional() @IsBoolean()
-  whatsappActive?: boolean;
-
-  @IsOptional() @IsEnum(PreferredChannel)
-  preferredChannel?: PreferredChannel;
 }

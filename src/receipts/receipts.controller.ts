@@ -9,11 +9,6 @@ import { ReceiptsService } from './receipts.service';
 export class ReceiptsController {
   constructor(private readonly receipts: ReceiptsService) {}
 
-  @Get('me')
-  mine(@CurrentUser() user: AuthenticatedUser) {
-    return this.receipts.listForMember(user.memberId);
-  }
-
   @Get(':id/download')
   async download(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
     const { buffer, receipt } = await this.receipts.getForDownload(id, user);

@@ -26,11 +26,4 @@ export class PushService {
     return { success: true };
   }
 
-  async listMyDevices(memberId: string) {
-    return this.prisma.pushSubscription.findMany({
-      where: { memberId },
-      select: { id: true, userAgent: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
 }

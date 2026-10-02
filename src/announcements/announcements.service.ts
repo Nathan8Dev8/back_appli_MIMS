@@ -68,6 +68,7 @@ export class AnnouncementsService {
           'ANNONCE',
           `Nouvelle annonce : ${announcement.title}`,
           announcement.content.length > 140 ? `${announcement.content.slice(0, 140)}…` : announcement.content,
+          '/annonces',
         ),
       ),
     );

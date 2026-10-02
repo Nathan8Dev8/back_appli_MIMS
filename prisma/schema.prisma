@@ -33,35 +33,37 @@ enum PreferredChannel {
 }
 
 model Member {
-  id                String       @id @default(uuid())
-  memberCode        String       @unique @map("member_code")
-  firstName         String       @map("first_name")
-  lastName          String       @map("last_name")
-  phone             String
-  email             String?
-  address           String?
-  birthDate         DateTime?    @map("birth_date")
-  avatarUrl         String?      @map("avatar_url")
-  joinedAt          DateTime     @default(now()) @map("joined_at")
-  status            MemberStatus @default(ACTIF)
-  whatsappActive    Boolean      @default(false) @map("whatsapp_active")
-  preferredChannel  PreferredChannel @default(PUSH) @map("preferred_channel")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  id               String           @id @default(uuid())
+  memberCode       String           @unique @map("member_code")
+  firstName        String           @map("first_name")
+  lastName         String           @map("last_name")
+  phone            String
+  email            String?
+  address          String?
+  birthDate        DateTime?        @map("birth_date")
+  avatarUrl        String?          @map("avatar_url")
+  joinedAt         DateTime         @default(now()) @map("joined_at")
+  status           MemberStatus     @default(ACTIF)
+  whatsappActive   Boolean          @default(false) @map("whatsapp_active")
+  preferredChannel PreferredChannel @default(PUSH) @map("preferred_channel")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  account           UserAccount?
-  roles             MemberRole[]
-  dues              MonthlyDue[]
-  payments          Payment[]        @relation("MemberPayments")
-  enteredPayments   Payment[]        @relation("PaymentEnteredBy")
-  eventParticipations EventParticipation[]
-  votes             Vote[]
-  notifications     Notification[]
-  onboarding        Onboarding?
-  publishedDocuments Document[]      @relation("DocumentPublishedBy")
-  createdEvents     Event[]          @relation("EventCreatedBy")
-  publishedAnnouncements Announcement[] @relation("AnnouncementPublishedBy")
-  pushSubscriptions PushSubscription[]
+  account                UserAccount?
+  roles                  MemberRole[]
+  dues                   MonthlyDue[]
+  payments               Payment[]            @relation("MemberPayments")
+  enteredPayments        Payment[]            @relation("PaymentEnteredBy")
+  createdCollectes       Collecte[]           @relation("CollecteCreatedBy")
+  enteredExpenses        Expense[]            @relation("ExpenseEnteredBy")
+  eventParticipations    EventParticipation[]
+  votes                  Vote[]
+  notifications          Notification[]
+  onboarding             Onboarding?
+  publishedDocuments     Document[]           @relation("DocumentPublishedBy")
+  createdEvents          Event[]              @relation("EventCreatedBy")
+  publishedAnnouncements Announcement[]       @relation("AnnouncementPublishedBy")
+  pushSubscriptions      PushSubscription[]
 
   @@index([phone])
   @@index([status])
@@ -69,14 +71,14 @@ model Member {
 }
 
 model UserAccount {
-  id                  String   @id @default(uuid())
-  memberId            String   @unique @map("member_id")
-  member              Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  username            String   @unique
-  passwordHash        String   @map("password_hash")
-  mustChangePassword  Boolean  @default(true) @map("must_change_password")
-  lastLoginAt         DateTime? @map("last_login_at")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                 String    @id @default(uuid())
+  memberId           String    @unique @map("member_id")
+  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  username           String    @unique
+  passwordHash       String    @map("password_hash")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  lastLoginAt        DateTime? @map("last_login_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   @@map("user_accounts")
 }
@@ -90,23 +92,23 @@ enum RoleCode {
 }
 
 model Role {
-  id        String       @id @default(uuid())
-  code      RoleCode     @unique
-  label     String
-  members   MemberRole[]
+  id      String       @id @default(uuid())
+  code    RoleCode     @unique
+  label   String
+  members MemberRole[]
 
   @@map("roles")
 }
 
 model MemberRole {
-  memberId  String   @map("member_id")
-  roleId    String   @map("role_id")
-  actif     Boolean  @default(true)
-  startedAt DateTime @default(now()) @map("started_at")
+  memberId  String    @map("member_id")
+  roleId    String    @map("role_id")
+  actif     Boolean   @default(true)
+  startedAt DateTime  @default(now()) @map("started_at")
   endedAt   DateTime? @map("ended_at")
 
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([memberId, roleId])
   @@map("member_roles")
@@ -124,17 +126,17 @@ enum DueStatus {
 }
 
 model MonthlyDue {
-  id          String    @id @default(uuid())
-  memberId    String    @map("member_id")
-  dueMonth    DateTime  @map("due_month") // premier jour du mois concerné
-  amountDue   Int       @map("amount_due") // FCFA
-  amountPaid  Int       @default(0) @map("amount_paid")
-  balance     Int       @map("balance")
-  status      DueStatus @default(A_PAYER)
-  dueDate     DateTime  @map("due_date")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id         String    @id @default(uuid())
+  memberId   String    @map("member_id")
+  dueMonth   DateTime  @map("due_month") // premier jour du mois concerné
+  amountDue  Int       @map("amount_due") // FCFA
+  amountPaid Int       @default(0) @map("amount_paid")
+  balance    Int       @map("balance")
+  status     DueStatus @default(A_PAYER)
+  dueDate    DateTime  @map("due_date")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
-  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
   allocations PaymentAllocation[]
 
   @@unique([memberId, dueMonth])
@@ -154,35 +156,48 @@ enum PaymentStatus {
   ANNULE
 }
 
+// Nature d'une entrée d'argent en caisse.
+enum PaymentNature {
+  COTISATION // cotisation mensuelle (500 FCFA de base, montant libre)
+  INSCRIPTION // frais d'inscription (1 000 FCFA de base)
+  COLLECTE // contribution à une collecte (mariage, naissance, deuil…)
+}
+
 model Payment {
-  id              String        @id @default(uuid())
-  paymentRef      String        @unique @map("payment_ref")
-  memberId        String        @map("member_id")
-  amount          Int
-  method          PaymentMethod
-  status          PaymentStatus @default(EN_ATTENTE)
-  paidAt          DateTime      @default(now()) @map("paid_at")
-  enteredById     String        @map("entered_by")
-  reversalOfId    String?       @map("reversal_of")
-  note            String?
+  id           String        @id @default(uuid())
+  paymentRef   String        @unique @map("payment_ref")
+  memberId     String        @map("member_id")
+  amount       Int
+  method       PaymentMethod
+  status       PaymentStatus @default(EN_ATTENTE)
+  paidAt       DateTime      @default(now()) @map("paid_at")
+  enteredById  String        @map("entered_by")
+  reversalOfId String?       @map("reversal_of")
+  note         String?
+  nature       PaymentNature @default(COTISATION)
+  collecteId   String?       @map("collecte_id")
 
-  member          Member        @relation("MemberPayments", fields: [memberId], references: [id])
-  enteredBy       Member        @relation("PaymentEnteredBy", fields: [enteredById], references: [id])
-  reversalOf      Payment?      @relation("PaymentReversal", fields: [reversalOfId], references: [id])
-  reversals       Payment[]     @relation("PaymentReversal")
-  allocations     PaymentAllocation[]
-  receipt         Receipt?
+  collecte    Collecte?           @relation(fields: [collecteId], references: [id])
+  member      Member              @relation("MemberPayments", fields: [memberId], references: [id])
+  enteredBy   Member              @relation("PaymentEnteredBy", fields: [enteredById], references: [id])
+  reversalOf  Payment?            @relation("PaymentReversal", fields: [reversalOfId], references: [id])
+  reversals   Payment[]           @relation("PaymentReversal")
+  allocations PaymentAllocation[]
+  receipt     Receipt?
 
+  @@index([nature])
+  @@index([paidAt])
+  @@index([collecteId])
   @@map("payments")
 }
 
 model PaymentAllocation {
-  paymentId       String     @map("payment_id")
-  dueId           String     @map("due_id")
-  amountAllocated Int        @map("amount_allocated")
+  paymentId       String @map("payment_id")
+  dueId           String @map("due_id")
+  amountAllocated Int    @map("amount_allocated")
 
-  payment         Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  due             MonthlyDue @relation(fields: [dueId], references: [id], onDelete: Cascade)
+  payment Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  due     MonthlyDue @relation(fields: [dueId], references: [id], onDelete: Cascade)
 
   @@id([paymentId, dueId])
   @@map("payment_allocations")
@@ -196,9 +211,82 @@ model Receipt {
   sha256      String
   generatedAt DateTime @default(now()) @map("generated_at")
 
-  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("receipts")
+}
+
+// Collecte exceptionnelle pour un événement de la vie d'un membre. Les
+// contributions sont des Payment (nature COLLECTE), la remise du montant
+// collecté au bénéficiaire est une sortie de caisse (Expense REMISE_COLLECTE).
+enum CollecteKind {
+  MARIAGE
+  NAISSANCE
+  DECES
+  AUTRE
+}
+
+enum CollecteStatus {
+  OUVERTE
+  CLOTUREE
+}
+
+model Collecte {
+  id          String         @id @default(uuid())
+  title       String
+  kind        CollecteKind
+  beneficiary String?
+  description String?
+  status      CollecteStatus @default(OUVERTE)
+  createdById String         @map("created_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  closedAt    DateTime?      @map("closed_at")
+
+  createdBy Member    @relation("CollecteCreatedBy", fields: [createdById], references: [id])
+  payments  Payment[]
+  expenses  Expense[]
+
+  @@index([status])
+  @@map("collectes")
+}
+
+// Sortie de caisse (dépense ou remise d'une collecte). Jamais supprimée :
+// une erreur se corrige par annulation motivée (status ANNULE).
+enum ExpenseCategory {
+  REMISE_COLLECTE
+  FONCTIONNEMENT
+  ACTIVITE
+  AUTRE_DEPENSE
+}
+
+enum ExpenseStatus {
+  VALIDE
+  ANNULE
+}
+
+model Expense {
+  id           String          @id @default(uuid())
+  expenseRef   String          @unique @map("expense_ref")
+  amount       Int
+  category     ExpenseCategory
+  label        String
+  method       PaymentMethod   @default(CASH)
+  spentAt      DateTime        @default(now()) @map("spent_at")
+  collecteId   String?         @map("collecte_id")
+  note         String?
+  status       ExpenseStatus   @default(VALIDE)
+  cancelReason String?         @map("cancel_reason")
+  cancelledAt  DateTime?       @map("cancelled_at")
+  enteredById  String          @map("entered_by")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  collecte  Collecte? @relation(fields: [collecteId], references: [id])
+  enteredBy Member    @relation("ExpenseEnteredBy", fields: [enteredById], references: [id])
+
+  @@index([spentAt])
+  @@index([category])
+  @@index([collecteId])
+  @@map("expenses")
 }
 
 // ————————————————————————————————————————————————————————————
@@ -231,8 +319,9 @@ model Document {
   publishedById String?        @map("published_by")
   createdAt     DateTime       @default(now()) @map("created_at")
 
-  publishedBy   Member?        @relation("DocumentPublishedBy", fields: [publishedById], references: [id])
-  onboardings   Onboarding[]
+  publishedBy Member?      @relation("DocumentPublishedBy", fields: [publishedById], references: [id])
+  onboardings Onboarding[]
+  reportFor   Event?       @relation("EventReport")
 
   @@index([type])
   @@index([status])
@@ -255,7 +344,7 @@ model Announcement {
   publishedAt      DateTime @default(now()) @map("published_at")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  publishedBy      Member   @relation("AnnouncementPublishedBy", fields: [publishedById], references: [id])
+  publishedBy Member @relation("AnnouncementPublishedBy", fields: [publishedById], references: [id])
 
   @@index([publishedAt])
   @@map("announcements")
@@ -272,19 +361,33 @@ enum EventStatus {
   ANNULE
 }
 
-model Event {
-  id            String      @id @default(uuid())
-  title         String
-  description   String?
-  location      String?
-  startsAt      DateTime    @map("starts_at")
-  endsAt        DateTime?   @map("ends_at")
-  status        EventStatus @default(PLANIFIE)
-  coverImageUrl String?     @map("cover_image_url")
-  createdById   String      @map("created_by")
-  createdAt     DateTime    @default(now()) @map("created_at")
+// Une assise est un événement de type ASSISE : son compte rendu (ordre du
+// jour, présences réelles, décisions, PV) est porté par l'événement lui-même,
+// pour qu'une réunion n'existe qu'à un seul endroit.
+enum EventKind {
+  ASSISE
+  ACTIVITE
+  AUTRE
+}
 
-  createdBy     Member      @relation("EventCreatedBy", fields: [createdById], references: [id])
+model Event {
+  id               String      @id @default(uuid())
+  kind             EventKind   @default(ACTIVITE)
+  title            String
+  description      String?
+  location         String?
+  startsAt         DateTime    @map("starts_at")
+  endsAt           DateTime?   @map("ends_at")
+  status           EventStatus @default(PLANIFIE)
+  coverImageUrl    String?     @map("cover_image_url")
+  agenda           String?
+  decisions        String?
+  reportDocumentId String?     @unique @map("report_document_id")
+  createdById      String      @map("created_by")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  createdBy      Member               @relation("EventCreatedBy", fields: [createdById], references: [id])
+  reportDocument Document?            @relation("EventReport", fields: [reportDocumentId], references: [id])
   participations EventParticipation[]
 
   @@index([startsAt])
@@ -302,9 +405,11 @@ model EventParticipation {
   memberId    String       @map("member_id")
   response    RsvpResponse @default(EN_ATTENTE)
   respondedAt DateTime?    @map("responded_at")
+  // Présence réelle, cochée après l'événement (null = pas encore pointé).
+  attended    Boolean?
 
-  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  member      Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@id([eventId, memberId])
   @@map("event_participations")
@@ -316,42 +421,42 @@ enum PollStatus {
 }
 
 model Poll {
-  id        String       @id @default(uuid())
-  title     String
+  id          String     @id @default(uuid())
+  title       String
   description String?
-  anonymous Boolean      @default(false)
-  opensAt   DateTime     @default(now()) @map("opens_at")
-  closesAt  DateTime?    @map("closes_at")
-  status    PollStatus   @default(OUVERT)
-  createdAt DateTime     @default(now()) @map("created_at")
+  anonymous   Boolean    @default(false)
+  opensAt     DateTime   @default(now()) @map("opens_at")
+  closesAt    DateTime?  @map("closes_at")
+  status      PollStatus @default(OUVERT)
+  createdAt   DateTime   @default(now()) @map("created_at")
 
-  options   PollOption[]
-  votes     Vote[]
+  options PollOption[]
+  votes   Vote[]
 
   @@map("polls")
 }
 
 model PollOption {
-  id      String @id @default(uuid())
-  pollId  String @map("poll_id")
-  label   String
+  id     String @id @default(uuid())
+  pollId String @map("poll_id")
+  label  String
 
-  poll    Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  votes   Vote[]
+  poll  Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes Vote[]
 
   @@map("poll_options")
 }
 
 model Vote {
-  id        String   @id @default(uuid())
-  pollId    String   @map("poll_id")
-  optionId  String   @map("option_id")
-  memberId  String   @map("member_id")
-  votedAt   DateTime @default(now()) @map("voted_at")
+  id       String   @id @default(uuid())
+  pollId   String   @map("poll_id")
+  optionId String   @map("option_id")
+  memberId String   @map("member_id")
+  votedAt  DateTime @default(now()) @map("voted_at")
 
-  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
-  member    Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  member Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, memberId])
   @@map("votes")
@@ -372,21 +477,21 @@ model Quiz {
   closesAt    DateTime?  @map("closes_at")
   createdAt   DateTime   @default(now()) @map("created_at")
 
-  attempts    QuizAttempt[]
+  attempts QuizAttempt[]
 
   @@map("quizzes")
 }
 
 model QuizAttempt {
-  id        String   @id @default(uuid())
-  quizId    String   @map("quiz_id")
-  memberId  String   @map("member_id")
-  answers   Json
-  score     Int
-  total     Int
+  id          String   @id @default(uuid())
+  quizId      String   @map("quiz_id")
+  memberId    String   @map("member_id")
+  answers     Json
+  score       Int
+  total       Int
   submittedAt DateTime @default(now()) @map("submitted_at")
 
-  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   @@unique([quizId, memberId])
   @@map("quiz_attempts")
@@ -424,19 +529,19 @@ enum NotificationStatus {
 }
 
 model Notification {
-  id              String              @id @default(uuid())
-  memberId        String              @map("member_id")
-  type            NotificationType
-  channel         NotificationChannel
-  title           String
-  content         String
-  status          NotificationStatus  @default(EN_ATTENTE)
-  providerMessageId String?           @map("provider_message_id")
-  sentAt          DateTime?           @map("sent_at")
-  readAt          DateTime?           @map("read_at")
-  createdAt       DateTime            @default(now()) @map("created_at")
+  id                String              @id @default(uuid())
+  memberId          String              @map("member_id")
+  type              NotificationType
+  channel           NotificationChannel
+  title             String
+  content           String
+  status            NotificationStatus  @default(EN_ATTENTE)
+  providerMessageId String?             @map("provider_message_id")
+  sentAt            DateTime?           @map("sent_at")
+  readAt            DateTime?           @map("read_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
 
-  member          Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
   @@index([status])
@@ -456,7 +561,7 @@ model PushSubscription {
   userAgent String?  @map("user_agent")
   createdAt DateTime @default(now()) @map("created_at")
 
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
   @@map("push_subscriptions")
@@ -476,9 +581,11 @@ model Onboarding {
   status               OnboardingStatus @default(EN_ATTENTE)
   welcomeSentAt        DateTime?        @map("welcome_sent_at")
   regulationSentAt     DateTime?        @map("regulation_sent_at")
+  // Le membre a lu et accepté le règlement depuis son écran de bienvenue.
+  completedAt          DateTime?        @map("completed_at")
 
-  member               Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  regulationDocument   Document?        @relation(fields: [regulationDocumentId], references: [id])
+  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  regulationDocument Document? @relation(fields: [regulationDocumentId], references: [id])
 
   @@map("onboardings")
 }
