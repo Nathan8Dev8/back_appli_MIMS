@@ -1,19 +1,24 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class QuizQuestionDto {
-  id!: string;
-  question!: string;
-  choices!: string[];
-  correctIndex!: number;
-}
-
+/** Les questions sont vérifiées en détail par validateQuestions (quiz-rules.ts). */
 export class CreateQuizDto {
-  @IsString()
+  @IsString() @MaxLength(200)
   title!: string;
 
-  @IsArray()
-  questions!: QuizQuestionDto[];
+  @IsOptional() @IsString() @MaxLength(1000)
+  comment?: string;
 
-  @IsOptional() @IsString()
+  @IsArray()
+  questions!: unknown[];
+
+  @IsOptional() @IsDateString()
   closesAt?: string;
+}
+
+export class SetResultDto {
+  @IsString()
+  questionId!: string;
+
+  @IsBoolean()
+  correct!: boolean;
 }

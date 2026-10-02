@@ -16,7 +16,7 @@ export class NotificationsService {
   /** `url` = page ouverte quand on touche la notification. */
   async notifyMember(memberId: string, type: NotificationType, title: string, content: string, url = '/notifications') {
     const notification = await this.prisma.notification.create({
-      data: { memberId, type, channel: 'PUSH', title, content, status: 'EN_ATTENTE' },
+      data: { memberId, type, channel: 'PUSH', title, content, url, status: 'EN_ATTENTE' },
     });
     // Pastille sur l'icône de l'appli (comme une messagerie) : nombre de notifications non lues.
     const unread = await this.prisma.notification.count({ where: { memberId, status: { not: 'LU' } } });

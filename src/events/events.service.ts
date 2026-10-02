@@ -142,17 +142,20 @@ export class EventsService {
     return this.findOne(eventId);
   }
 
-  /** Le PV joint au compte rendu est publié dans Documents ; l'ancien PV éventuel passe aux archives. */
+  /** Rapport (assise) ou PV (autre événement) joint depuis la page de l'événement : publié et rangé dans Documents. */
   async attachReport(eventId: string, file: Express.Multer.File, actorId: string) {
     const event = await this.prisma.event.findUniqueOrThrow({ where: { id: eventId } });
-    const document = await this.documents.upload(
+    const assise = event.kind === 'ASSISE';
+    await this.documents.upload(
       file,
-      { type: 'PV', title: `PV — ${event.title}`, documentDate: event.startsAt.toISOString() },
+      {
+        type: assise ? 'ASSISE' : 'PV',
+        title: `${assise ? "Rapport d'assise" : 'PV'} — ${event.title}`,
+        documentDate: event.startsAt.toISOString(),
+        eventId,
+      },
       actorId,
     );
-    await this.documents.publish(document.id, actorId);
-    if (event.reportDocumentId) await this.documents.setArchived(event.reportDocumentId, true, actorId);
-    await this.prisma.event.update({ where: { id: eventId }, data: { reportDocumentId: document.id } });
     return this.findOne(eventId);
   }
 

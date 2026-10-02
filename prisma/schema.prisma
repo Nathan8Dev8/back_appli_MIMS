@@ -64,6 +64,7 @@ model Member {
   createdEvents          Event[]              @relation("EventCreatedBy")
   publishedAnnouncements Announcement[]       @relation("AnnouncementPublishedBy")
   pushSubscriptions      PushSubscription[]
+  quizAttempts           QuizAttempt[]
 
   @@index([phone])
   @@index([status])
@@ -296,6 +297,7 @@ model Expense {
 enum DocumentType {
   REGLEMENT
   PV
+  ASSISE // rapport d'assise, toujours rattaché à un événement de type ASSISE
   AUTRE
 }
 
@@ -468,10 +470,14 @@ enum QuizStatus {
   CLOTURE
 }
 
+// Un quiz par semaine. content.questions : { id, type: 'CHOIX' | 'TEXTE', question,
+// choices + correctIndexes (cases à cocher) ou answer (réponse écrite attendue) }.
 model Quiz {
   id          String     @id @default(uuid())
   title       String
-  content     Json // questions/réponses structurées
+  // Petit mot du responsable pour les participants (consigne, encouragement…).
+  comment     String?
+  content     Json
   status      QuizStatus @default(BROUILLON)
   publishedAt DateTime?  @map("published_at")
   closesAt    DateTime?  @map("closes_at")
@@ -486,12 +492,15 @@ model QuizAttempt {
   id          String   @id @default(uuid())
   quizId      String   @map("quiz_id")
   memberId    String   @map("member_id")
-  answers     Json
+  answers     Json // { [questionId]: number[] (cases cochées) | string (réponse écrite) }
+  // { [questionId]: true/false } : correction automatique, ajustable par un responsable.
+  results     Json     @default("{}")
   score       Int
   total       Int
   submittedAt DateTime @default(now()) @map("submitted_at")
 
-  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([quizId, memberId])
   @@map("quiz_attempts")
@@ -535,6 +544,8 @@ model Notification {
   channel           NotificationChannel
   title             String
   content           String
+  // Page ouverte quand on touche la notification (ex. /evenements/<id>).
+  url               String?
   status            NotificationStatus  @default(EN_ATTENTE)
   providerMessageId String?             @map("provider_message_id")
   sentAt            DateTime?           @map("sent_at")

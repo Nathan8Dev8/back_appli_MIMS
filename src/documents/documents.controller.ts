@@ -46,9 +46,10 @@ export class DocumentsController {
     @Body('title') title: string,
     @Body('description') description: string,
     @Body('documentDate') documentDate: string,
+    @Body('eventId') eventId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.documents.upload(file, { type, title, description, documentDate }, user.memberId);
+    return this.documents.upload(file, { type, title, description, documentDate, eventId: eventId || undefined }, user.memberId);
   }
 
   @Post(':id/publish')
@@ -61,7 +62,7 @@ export class DocumentsController {
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   update(
     @Param('id') id: string,
-    @Body() body: { type?: DocumentType; title?: string; description?: string; documentDate?: string },
+    @Body() body: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (body.type && !Object.values(DocumentType).includes(body.type)) throw new BadRequestException('Type invalide.');

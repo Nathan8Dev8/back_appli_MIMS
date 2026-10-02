@@ -16,7 +16,8 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio",
     "storage:check": "ts-node scripts/check-storage.ts",
-    "check:cotisation": "ts-node scripts/check-cotisation-dates.ts"
+    "check:cotisation": "ts-node scripts/check-cotisation-dates.ts",
+    "check:quiz": "ts-node scripts/check-quiz-rules.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1132.0",

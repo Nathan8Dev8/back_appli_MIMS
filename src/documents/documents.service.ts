@@ -32,9 +32,15 @@ export class DocumentsService {
     });
   }
 
-  async update(id: string, meta: { type?: DocumentType; title?: string; description?: string; documentDate?: string }, actorId: string) {
-    const before = await this.prisma.document.findUnique({ where: { id } });
+  async update(
+    id: string,
+    meta: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string },
+    actorId: string,
+  ) {
+    const before = await this.prisma.document.findUnique({ where: { id }, include: { reportFor: { select: { id: true } } } });
     if (!before) throw new NotFoundException('Document introuvable.');
+    const eventId = meta.eventId || before.reportFor?.id;
+    await this.checkAssiseLink(meta.type ?? before.type, eventId);
     const document = await this.prisma.document.update({
       where: { id },
       data: {
@@ -45,7 +51,30 @@ export class DocumentsService {
       },
     });
     await this.audit.log({ actorId, action: 'UPDATE_DOCUMENT', entityType: 'Document', entityId: id, before, after: document });
+    if (meta.eventId && meta.eventId !== before.reportFor?.id) await this.linkToEvent(id, meta.eventId, actorId);
     return document;
+  }
+
+  /** Un rapport d'assise doit être rattaché à une assise (événement de type ASSISE, non annulé). */
+  private async checkAssiseLink(type: DocumentType, eventId?: string) {
+    if (type !== 'ASSISE') return;
+    if (!eventId) throw new BadRequestException("Choisis l'assise à laquelle ce rapport se rapporte.");
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event || event.kind !== 'ASSISE') throw new BadRequestException("Un rapport d'assise doit être rattaché à une assise.");
+  }
+
+  /**
+   * Rattache un rapport à un événement : un événement n'a qu'un rapport en cours
+   * (l'ancien passe aux archives) et un rapport ne couvre qu'un événement.
+   */
+  private async linkToEvent(documentId: string, eventId: string, actorId: string) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Événement introuvable.');
+    if (event.status === 'ANNULE') throw new BadRequestException('Cet événement a été annulé.');
+    await this.prisma.event.updateMany({ where: { reportDocumentId: documentId, id: { not: eventId } }, data: { reportDocumentId: null } });
+    if (event.reportDocumentId && event.reportDocumentId !== documentId) await this.setArchived(event.reportDocumentId, true, actorId);
+    await this.prisma.event.update({ where: { id: eventId }, data: { reportDocumentId: documentId } });
+    await this.audit.log({ actorId, action: 'LINK_REPORT', entityType: 'Event', entityId: eventId, after: { documentId } });
   }
 
   /** Archiver ne supprime rien : le document sort de la liste courante mais reste dans l'Historique. */
@@ -60,10 +89,11 @@ export class DocumentsService {
 
   async upload(
     file: Express.Multer.File,
-    meta: { type: DocumentType; title: string; description?: string; documentDate?: string },
+    meta: { type: DocumentType; title: string; description?: string; documentDate?: string; eventId?: string },
     actorId: string,
   ) {
     if (!file) throw new BadRequestException('Aucun fichier reçu.');
+    await this.checkAssiseLink(meta.type, meta.eventId);
     const count = await this.prisma.document.count();
     const documentCode = `DOC-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
     const key = `documents/${documentCode}/${randomUUID()}-${file.originalname}`;
@@ -90,6 +120,11 @@ export class DocumentsService {
       after: document,
     });
 
+    // Rapport rattaché à un événement : publié tout de suite pour que la page de l'événement le montre à tous.
+    if (meta.eventId) {
+      await this.linkToEvent(document.id, meta.eventId, actorId);
+      return this.publish(document.id, actorId);
+    }
     return document;
   }
 
@@ -108,7 +143,8 @@ export class DocumentsService {
     });
 
     const members = await this.prisma.member.findMany({ where: { status: 'ACTIF' } });
-    const label = document.type === 'PV' ? 'Nouveau procès-verbal' : 'Nouveau document';
+    const label = { ASSISE: "Nouveau rapport d'assise", PV: 'Nouveau procès-verbal' }[document.type as string] ?? 'Nouveau document';
+    const event = await this.prisma.event.findUnique({ where: { reportDocumentId: id }, select: { id: true } });
     await Promise.all(
       members.map((m) =>
         this.notifications.notifyMember(
@@ -116,7 +152,7 @@ export class DocumentsService {
           'DOCUMENT_PUBLIE',
           'Nouveau document',
           `${label} : « ${document.title} ». Tu peux le lire dans l'onglet Documents.`,
-          document.type === 'PV' ? '/historique?type=documents' : '/documents',
+          event ? `/evenements/${event.id}` : '/documents',
         ),
       ),
     );
