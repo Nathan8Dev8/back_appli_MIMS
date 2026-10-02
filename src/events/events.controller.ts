@@ -44,6 +44,12 @@ export class EventsController {
     return this.events.update(id, dto, user.memberId);
   }
 
+  @Post('series/:seriesId/stop')
+  @Roles(...ORGANIZERS)
+  stopSeries(@Param('seriesId') seriesId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.events.stopSeries(seriesId, user.memberId);
+  }
+
   @Post(':id/cancel')
   @Roles(...ORGANIZERS)
   cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

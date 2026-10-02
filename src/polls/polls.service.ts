@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -12,11 +12,16 @@ export class PollsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  list() {
-    return this.prisma.poll.findMany({
+  /** Les sondages, avec le choix actuel du membre connecté (myOptionId). */
+  async list(memberId: string) {
+    const polls = await this.prisma.poll.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { options: { include: { _count: { select: { votes: true } } } } },
+      include: {
+        options: { orderBy: [{ position: 'asc' }, { id: 'asc' }], include: { _count: { select: { votes: true } } } },
+        votes: { where: { memberId }, select: { optionId: true } },
+      },
     });
+    return polls.map(({ votes, ...poll }) => ({ ...poll, myOptionId: votes[0]?.optionId ?? null }));
   }
 
   async create(dto: CreatePollDto, actorId: string) {
@@ -26,7 +31,7 @@ export class PollsService {
         description: dto.description,
         anonymous: dto.anonymous ?? false,
         closesAt: dto.closesAt ? new Date(dto.closesAt) : undefined,
-        options: { create: dto.options.map((label) => ({ label })) },
+        options: { create: dto.options.map((label, position) => ({ label, position })) },
       },
       include: { options: true },
     });
@@ -54,12 +59,15 @@ export class PollsService {
     if (poll.status === 'CLOTURE' || (poll.closesAt && poll.closesAt < new Date())) {
       throw new BadRequestException('Ce sondage est clôturé.');
     }
-    const existing = await this.prisma.vote.findUnique({
-      where: { pollId_memberId: { pollId, memberId } },
-    });
-    if (existing) throw new ConflictException('Tu as déjà voté pour ce sondage.');
+    const option = await this.prisma.pollOption.findUnique({ where: { id: optionId } });
+    if (!option || option.pollId !== pollId) throw new BadRequestException('Ce choix ne fait pas partie du sondage.');
 
-    return this.prisma.vote.create({ data: { pollId, optionId, memberId } });
+    // Tant que le sondage est ouvert, on peut changer d'avis : le nouveau choix remplace l'ancien.
+    return this.prisma.vote.upsert({
+      where: { pollId_memberId: { pollId, memberId } },
+      update: { optionId, votedAt: new Date() },
+      create: { pollId, optionId, memberId },
+    });
   }
 
   async close(pollId: string, actorId: string) {

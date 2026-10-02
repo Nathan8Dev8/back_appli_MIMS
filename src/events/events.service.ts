@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { HORIZON_MS, Recurrence, describe, localTime, occurrences, validRecurrence } from './recurrence';
 import { RsvpResponse } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -7,6 +9,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { CreateEventDto, UpdateEventDto } from './dto/create-event.dto';
 
 const REPORT_DOCUMENT = { select: { id: true, title: true, documentCode: true, status: true } };
+const SERIES = { select: { id: true, frequency: true, weekday: true, nth: true, monthDay: true, time: true, until: true, active: true } };
 
 /** Latitude et longitude vont ensemble : les deux, ou aucune (null efface la position). */
 function coordinates(dto: { latitude?: number | null; longitude?: number | null }) {
@@ -20,6 +23,8 @@ const clean = (value?: string) => (value === undefined ? undefined : value.trim(
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -34,6 +39,7 @@ export class EventsService {
       include: {
         participations: { select: { memberId: true, response: true, attended: true } },
         reportDocument: REPORT_DOCUMENT,
+        series: SERIES,
       },
     });
   }
@@ -46,6 +52,7 @@ export class EventsService {
           include: { member: { select: { id: true, firstName: true, lastName: true, avatarUrl: true, status: true } } },
         },
         reportDocument: REPORT_DOCUMENT,
+        series: SERIES,
         createdBy: { select: { firstName: true, lastName: true } },
       },
     });
@@ -54,6 +61,7 @@ export class EventsService {
   }
 
   async create(dto: CreateEventDto, actorId: string) {
+    if (dto.repeat) return this.createSeries(dto, actorId);
     const event = await this.prisma.event.create({
       data: {
         kind: dto.kind,
@@ -77,6 +85,120 @@ export class EventsService {
     );
 
     return event;
+  }
+
+  // ——— Événements récurrents ———
+
+  /** Crée la série puis ses premières dates ; une seule notification pour toute la série. */
+  private async createSeries(dto: CreateEventDto, actorId: string) {
+    const first = new Date(dto.startsAt);
+    let rule;
+    try {
+      rule = validRecurrence(dto.repeat as Partial<Recurrence>, localTime(first));
+    } catch (e: any) {
+      throw new BadRequestException(e.message);
+    }
+    const until = dto.repeat?.until ? new Date(dto.repeat.until) : null;
+    if (until && (Number.isNaN(until.getTime()) || until < first)) throw new BadRequestException('La fin de la répétition doit être après la première date.');
+
+    const series = await this.prisma.eventSeries.create({
+      data: {
+        kind: dto.kind,
+        title: dto.title.trim(),
+        description: clean(dto.description),
+        location: clean(dto.location),
+        ...coordinates(dto),
+        agenda: clean(dto.agenda),
+        frequency: rule!.frequency,
+        weekday: rule!.weekday,
+        nth: rule!.nth,
+        monthDay: rule!.monthDay,
+        time: rule!.time,
+        until,
+        createdById: actorId,
+      },
+    });
+    await this.generateOccurrences(series.id, new Date(first.getTime() - 60_000));
+    const firstEvent = await this.prisma.event.findFirst({ where: { seriesId: series.id }, orderBy: { startsAt: 'asc' } });
+    if (!firstEvent) throw new BadRequestException("Aucune date ne correspond à cette répétition : vérifie la date de fin.");
+    await this.audit.log({ actorId, action: 'CREATE_EVENT_SERIES', entityType: 'EventSeries', entityId: series.id, after: { title: series.title, rule: describe(rule!) } });
+
+    await this.notifyActiveMembers(
+      `🔁 Nouveau rendez-vous régulier : ${series.title}`,
+      `${describe(rule!)[0].toUpperCase()}${describe(rule!).slice(1)}. Première fois le ${firstEvent.startsAt.toLocaleDateString('fr-FR', { timeZone: 'Africa/Douala' })}.`,
+      `/evenements/${firstEvent.id}`,
+    );
+    return firstEvent;
+  }
+
+  /** Crée les dates manquantes d'une série sur le mois à venir (au moins la prochaine). Sans notification. */
+  async generateOccurrences(seriesId: string, from = new Date()) {
+    const series = await this.prisma.eventSeries.findUniqueOrThrow({ where: { id: seriesId } });
+    if (!series.active) return 0;
+    const rule: Recurrence = { frequency: series.frequency, weekday: series.weekday, nth: series.nth, monthDay: series.monthDay, time: series.time };
+    const limit = (d: Date) => (series.until && series.until < d ? series.until : d);
+    let dates = occurrences(rule, from, limit(new Date(Date.now() + HORIZON_MS)));
+    if (!dates.length) dates = occurrences(rule, from, limit(new Date(from.getTime() + 400 * 24 * 3600 * 1000))).slice(0, 1);
+
+    const { count } = await this.prisma.event.createMany({
+      data: dates.map((startsAt) => ({
+        seriesId,
+        kind: series.kind,
+        title: series.title,
+        description: series.description,
+        location: series.location,
+        latitude: series.latitude,
+        longitude: series.longitude,
+        agenda: series.agenda,
+        startsAt,
+        createdById: series.createdById,
+      })),
+      skipDuplicates: true,
+    });
+    return count;
+  }
+
+  /** Chaque nuit : les séries actives sont prolongées d'un mois. */
+  @Cron('30 0 * * *', { timeZone: 'Africa/Douala' })
+  async extendSeries() {
+    const series = await this.prisma.eventSeries.findMany({ where: { active: true }, select: { id: true, until: true } });
+    let created = 0;
+    for (const s of series) {
+      if (s.until && s.until < new Date()) {
+        await this.prisma.eventSeries.update({ where: { id: s.id }, data: { active: false } });
+        continue;
+      }
+      created += await this.generateOccurrences(s.id);
+    }
+    if (created) this.logger.log(`Événements récurrents : ${created} date(s) ajoutée(s).`);
+  }
+
+  /**
+   * Arrête une série : plus de nouvelles dates. Les dates à venir sans aucune réponse sont retirées ;
+   * celles où des membres ont déjà répondu sont annulées (ceux qui venaient sont prévenus). Le passé reste.
+   */
+  async stopSeries(seriesId: string, actorId: string) {
+    const series = await this.prisma.eventSeries.findUnique({ where: { id: seriesId } });
+    if (!series) throw new NotFoundException('Série introuvable.');
+    await this.prisma.eventSeries.update({ where: { id: seriesId }, data: { active: false } });
+
+    const upcoming = await this.prisma.event.findMany({
+      where: { seriesId, startsAt: { gt: new Date() }, status: { not: 'ANNULE' } },
+      include: { participations: { select: { memberId: true, response: true } } },
+    });
+    const empty = upcoming.filter((e) => !e.participations.length).map((e) => e.id);
+    await this.prisma.event.deleteMany({ where: { id: { in: empty } } });
+    for (const e of upcoming.filter((e) => e.participations.length)) {
+      await this.prisma.event.update({ where: { id: e.id }, data: { status: 'ANNULE' } });
+      const coming = e.participations.filter((p) => p.response === 'PRESENT');
+      await Promise.all(
+        coming.map((p) =>
+          this.notifications.notifyMember(p.memberId, 'EVENEMENT', `Annulé : ${e.title}`, `« ${e.title} » du ${e.startsAt.toLocaleDateString('fr-FR', { timeZone: 'Africa/Douala' })} n'aura pas lieu.`, `/evenements/${e.id}`),
+        ),
+      );
+    }
+    await this.audit.log({ actorId, action: 'STOP_EVENT_SERIES', entityType: 'EventSeries', entityId: seriesId, after: { removed: empty.length, cancelled: upcoming.length - empty.length } });
+    return { removed: empty.length, cancelled: upcoming.length - empty.length };
   }
 
   async update(id: string, dto: UpdateEventDto, actorId: string) {

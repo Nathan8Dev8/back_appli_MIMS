@@ -1,5 +1,5 @@
 import { EventKind } from '@prisma/client';
-import { IsArray, IsDateString, IsEnum, IsLatitude, IsLongitude, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsLatitude, IsLongitude, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateEventDto {
   @IsOptional() @IsEnum(EventKind)
@@ -29,6 +29,10 @@ export class CreateEventDto {
 
   @IsOptional() @IsString()
   agenda?: string;
+
+  /** Répétition : { frequency, weekday?, nth?, monthDay?, until? } — vérifiée par validRecurrence. */
+  @IsOptional() @IsObject()
+  repeat?: { frequency: 'WEEKLY' | 'MONTHLY_NTH' | 'MONTHLY_DAY'; weekday?: number; nth?: number; monthDay?: number; until?: string };
 }
 
 export class UpdateEventDto {

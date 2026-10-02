@@ -37,13 +37,26 @@ export class NotificationsService {
     return this.prisma.notification.findMany({
       where: { memberId },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 100,
     });
   }
 
   async markRead(memberId: string, id: string) {
     return this.prisma.notification.updateMany({
       where: { id, memberId },
+      data: { status: 'LU', readAt: new Date() },
+    });
+  }
+
+  /** Ouvrir une page (ex. /evenements) marque comme lues les notifications qui y mènent : la bulle du menu disparaît. */
+  async markSectionRead(memberId: string, path: string) {
+    if (!/^\/[a-z0-9-]+$/.test(path ?? '')) return { count: 0 };
+    return this.prisma.notification.updateMany({
+      where: {
+        memberId,
+        status: { not: 'LU' },
+        OR: [{ url: path }, { url: { startsWith: `${path}/` } }, { url: { startsWith: `${path}?` } }],
+      },
       data: { status: 'LU', readAt: new Date() },
     });
   }

@@ -13,8 +13,8 @@ export class PollsController {
   constructor(private readonly polls: PollsService) {}
 
   @Get()
-  list() {
-    return this.polls.list();
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.polls.list(user.memberId);
   }
 
   @Post()

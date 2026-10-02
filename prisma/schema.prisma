@@ -62,6 +62,7 @@ model Member {
   onboarding             Onboarding?
   publishedDocuments     Document[]           @relation("DocumentPublishedBy")
   createdEvents          Event[]              @relation("EventCreatedBy")
+  createdEventSeries     EventSeries[]        @relation("EventSeriesCreatedBy")
   publishedAnnouncements Announcement[]       @relation("AnnouncementPublishedBy")
   pushSubscriptions      PushSubscription[]
   quizAttempts           QuizAttempt[]
@@ -375,6 +376,39 @@ enum EventKind {
   AUTRE
 }
 
+enum EventFrequency {
+  WEEKLY
+  MONTHLY_NTH
+  MONTHLY_DAY
+}
+
+// Événement récurrent (ex. « nuit de prière chaque dernier vendredi du mois à 22h ») :
+// chaque date est créée comme un Event ordinaire, un mois à l'avance (voir recurrence.ts).
+model EventSeries {
+  id          String         @id @default(uuid())
+  kind        EventKind      @default(ACTIVITE)
+  title       String
+  description String?
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  agenda      String?
+  frequency   EventFrequency
+  weekday     Int?
+  nth         Int?
+  monthDay    Int?           @map("month_day")
+  time        String
+  until       DateTime?
+  active      Boolean        @default(true)
+  createdById String         @map("created_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  createdBy Member  @relation("EventSeriesCreatedBy", fields: [createdById], references: [id])
+  events    Event[]
+
+  @@map("event_series")
+}
+
 model Event {
   id               String      @id @default(uuid())
   kind             EventKind   @default(ACTIVITE)
@@ -391,13 +425,16 @@ model Event {
   agenda           String?
   decisions        String?
   reportDocumentId String?     @unique @map("report_document_id")
+  seriesId         String?     @map("series_id")
   createdById      String      @map("created_by")
   createdAt        DateTime    @default(now()) @map("created_at")
 
   createdBy      Member               @relation("EventCreatedBy", fields: [createdById], references: [id])
   reportDocument Document?            @relation("EventReport", fields: [reportDocumentId], references: [id])
+  series         EventSeries?         @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   participations EventParticipation[]
 
+  @@unique([seriesId, startsAt])
   @@index([startsAt])
   @@map("events")
 }
@@ -445,9 +482,11 @@ model Poll {
 }
 
 model PollOption {
-  id     String @id @default(uuid())
-  pollId String @map("poll_id")
-  label  String
+  id       String @id @default(uuid())
+  pollId   String @map("poll_id")
+  label    String
+  // Ordre de saisie par l'organisateur (affichage stable).
+  position Int    @default(0)
 
   poll  Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
   votes Vote[]
