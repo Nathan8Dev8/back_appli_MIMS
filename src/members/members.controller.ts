@@ -52,6 +52,13 @@ export class MembersController {
     return this.members.updateAvatar(user.memberId, file);
   }
 
+  // Mot de passe oublié : le Président/Admin génère un mot de passe provisoire, à changer à la connexion suivante.
+  @Post(':id/reset-password')
+  @Roles(RoleCode.PRESIDENT_ADMIN)
+  resetPassword(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.members.resetPassword(id, user.memberId);
+  }
+
   @Patch(':id/status')
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   setStatus(@Param('id') id: string, @Body('status') status: string, @CurrentUser() user: AuthenticatedUser) {

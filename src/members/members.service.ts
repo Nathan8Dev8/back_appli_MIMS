@@ -115,6 +115,17 @@ export class MembersService {
     return { ...member, temporaryPassword, username };
   }
 
+  async resetPassword(memberId: string, actorId: string) {
+    const account = await this.prisma.userAccount.findUniqueOrThrow({ where: { memberId } });
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    await this.prisma.userAccount.update({
+      where: { id: account.id },
+      data: { passwordHash: await argon2.hash(temporaryPassword), mustChangePassword: true },
+    });
+    await this.audit.log({ actorId, action: 'RESET_PASSWORD', entityType: 'UserAccount', entityId: account.id });
+    return { username: account.username, temporaryPassword };
+  }
+
   async updateProfile(memberId: string, dto: UpdateProfileDto) {
     const birthDate = dto.birthDate ? new Date(`${dto.birthDate}T00:00:00Z`) : undefined;
     if (birthDate && (Number.isNaN(birthDate.getTime()) || birthDate > new Date() || birthDate.getUTCFullYear() < 1920)) {
