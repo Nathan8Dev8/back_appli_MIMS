@@ -1,0 +1,26 @@
+name: Garder l'API Render active
+
+# Render (plan gratuit) met le service en veille après 15 min d'inactivité,
+# ce qui casse les tâches planifiées de l'API (cotisations mensuelles,
+# rappels, anniversaires…). Ce workflow ping /api/health toutes les 10
+# minutes pour maintenir le service éveillé, indépendamment de toute
+# session Claude — tourne sur l'infrastructure de GitHub, en continu.
+#
+# ⚠️ Remplace RENDER_API_URL ci-dessous par ta vraie URL Render une fois
+# l'API déployée (ex. https://jeunes-mims-api.onrender.com).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {} # permet de le déclencher manuellement depuis l'onglet Actions
+
+env:
+  RENDER_API_URL: 'https://back-appli-mims.onrender.com'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: |
+          curl -fsS --max-time 20 "${RENDER_API_URL}/api/health" || echo "Ping échoué (le service redémarre peut-être) — pas bloquant."

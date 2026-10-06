@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jeunes-mims-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jeunes_mims
+      POSTGRES_PASSWORD: jeunes_mims
+      POSTGRES_DB: jeunes_mims
+    ports:
+      - '5433:5432'
+    volumes:
+      - jeunes_mims_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jeunes_mims']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  jeunes_mims_db_data:
