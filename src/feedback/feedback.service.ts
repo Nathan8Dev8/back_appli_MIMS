@@ -84,14 +84,18 @@ export class FeedbackService {
       where: { id },
       data: { status: dto.status, adminNote: dto.adminNote === undefined ? undefined : dto.adminNote.trim() || null },
     });
+    const icon = feedback.kind === 'BUG' ? '🐞' : '✨';
     if (dto.status && dto.status !== before.status) {
       await this.notifications.notifyMember(
         feedback.authorId,
         'AUTRE',
-        `${feedback.kind === 'BUG' ? '🐞' : '✨'} Ton signalement est ${STATUS_LABEL[dto.status]}`,
+        `${icon} Ton signalement est ${STATUS_LABEL[dto.status]}`,
         feedback.adminNote ?? feedback.title,
         '/mon-profil',
       );
+    } else if (feedback.adminNote && feedback.adminNote !== before.adminNote) {
+      // Réponse envoyée (ou corrigée) sans changer le statut : la personne est prévenue aussi.
+      await this.notifications.notifyMember(feedback.authorId, 'AUTRE', `${icon} Réponse à ton signalement`, feedback.adminNote, '/mon-profil');
     }
     return feedback;
   }

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -17,6 +17,8 @@ const NATURE_NOTIFICATION: Record<string, string> = {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -72,7 +74,8 @@ export class PaymentsService {
       entityId: payment.id,
       after: payment,
     });
-    return dto.autoConfirm ? this.confirm(payment.id, actorId) : payment;
+    // Tout encaissement est validé sur-le-champ : le membre reçoit son reçu (avec la nature du versement) automatiquement.
+    return this.confirm(payment.id, actorId);
   }
 
   /**
@@ -133,8 +136,19 @@ export class PaymentsService {
       after: { status: 'VALIDE' },
     });
 
-    const receipt = await this.receipts.generateForPayment(payment.id);
+    // L'argent est encaissé quoi qu'il arrive : un reçu raté ne doit pas faire croire à une erreur
+    // (sinon le trésorier ressaisit le versement). Il pourra le régénérer depuis Transactions.
+    await this.issueReceipt(payment).catch((err) => this.logger.error(`Reçu non généré pour ${payment.paymentRef}`, err));
 
+    return this.prisma.payment.findUnique({
+      where: { id: payment.id },
+      include: { allocations: { include: { due: true } }, receipt: true },
+    });
+  }
+
+  /** Génère le reçu PDF et l'envoie au membre (notification). */
+  private async issueReceipt(payment: { id: string; memberId: string; nature: string; amount: number }) {
+    const receipt = await this.receipts.generateForPayment(payment.id);
     await this.notifications.notifyMember(
       payment.memberId,
       'RECU',
@@ -142,11 +156,19 @@ export class PaymentsService {
       `Merci pour ${NATURE_NOTIFICATION[payment.nature] ?? 'ton versement'} de ${payment.amount.toLocaleString('fr-FR')} FCFA. Ton reçu ${receipt.receiptNo} est dans ton espace personnel.`,
       '/cotisations',
     );
+    return receipt;
+  }
 
-    return this.prisma.payment.findUnique({
-      where: { id: payment.id },
-      include: { allocations: { include: { due: true } }, receipt: true },
-    });
+  /** Paiement validé resté sans reçu (ex. stockage indisponible au moment de l'encaissement) : on le refait. */
+  async regenerateReceipt(paymentId: string, actorId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { receipt: true } });
+    if (!payment) throw new NotFoundException('Paiement introuvable.');
+    if (payment.status !== 'VALIDE' || payment.amount <= 0) throw new BadRequestException('Seul un encaissement validé a un reçu.');
+    if (payment.receipt) throw new BadRequestException('Ce paiement a déjà son reçu.');
+
+    const receipt = await this.issueReceipt(payment);
+    await this.audit.log({ actorId, action: 'REGENERATE_RECEIPT', entityType: 'Payment', entityId: payment.id, after: { receiptNo: receipt.receiptNo } });
+    return receipt;
   }
 
   /**

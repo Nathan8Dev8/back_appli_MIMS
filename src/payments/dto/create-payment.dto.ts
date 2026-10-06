@@ -33,7 +33,7 @@ export class CreatePaymentDto {
   @IsISO8601()
   paidAt?: string;
 
-  /** true = valider tout de suite (reçu généré) au lieu de laisser en attente. */
+  /** Ignoré : un encaissement est toujours validé avec son reçu. Gardé pour ne pas refuser les anciens appels. */
   @IsOptional()
   @IsBoolean()
   autoConfirm?: boolean;

@@ -35,6 +35,12 @@ export class PaymentsController {
     return this.payments.confirm(id, user.memberId);
   }
 
+  @Post(':id/receipt')
+  @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN)
+  regenerateReceipt(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.payments.regenerateReceipt(id, user.memberId);
+  }
+
   @Post(':id/reverse')
   @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN)
   reverse(@Param('id') id: string, @Body('reason') reason: string, @CurrentUser() user: AuthenticatedUser) {
