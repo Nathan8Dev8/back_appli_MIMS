@@ -22,6 +22,13 @@ export class AuthController {
     return this.auth.me(user.memberId);
   }
 
+  // Renouvelé à chaque ouverture de l'appli : la session n'expire qu'après 90 j sans l'ouvrir.
+  @UseGuards(JwtAuthGuard)
+  @Post('refresh')
+  refresh(@CurrentUser() user: AuthenticatedUser) {
+    return this.auth.refresh(user);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('change-password')

@@ -35,7 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Ta session a expiré, reconnecte-toi.');
     }
     // Rôles relus en base à chaque requête : un rôle retiré cesse de compter immédiatement,
-    // même si le jeton (12 h) a été émis avant.
+    // même si le jeton (90 j) a été émis avant.
     return {
       memberId: payload.sub,
       username: payload.username,

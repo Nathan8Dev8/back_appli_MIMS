@@ -11,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
     PassportModule,
     // Lu au démarrage (pas au chargement du fichier), une fois le .env chargé.
     JwtModule.registerAsync({
-      useFactory: () => ({ secret: jwtSecret(), signOptions: { expiresIn: process.env.JWT_EXPIRES_IN ?? '12h' } }),
+      useFactory: () => ({ secret: jwtSecret(), signOptions: { expiresIn: process.env.JWT_EXPIRES_IN ?? '90d' } }),
     }),
   ],
   controllers: [AuthController],

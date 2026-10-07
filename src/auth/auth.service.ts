@@ -61,6 +61,10 @@ export class AuthService {
     };
   }
 
+  refresh(user: { memberId: string; username: string; roles: string[] }) {
+    return { accessToken: this.jwt.sign({ sub: user.memberId, username: user.username, roles: user.roles }) };
+  }
+
   async changePassword(memberId: string, currentPassword: string, newPassword: string) {
     const account = await this.prisma.userAccount.findUniqueOrThrow({ where: { memberId } });
     const valid = await argon2.verify(account.passwordHash, currentPassword);
